@@ -1,0 +1,19 @@
+# Day 1 — AST parsing
+tree-sitter
+tree-sitter-python
+networkx
+
+# Coming in later steps (uncomment as you build each stage):
+# sentence-transformers
+# chromadb
+# langchain
+# langchain-community
+# langgraph
+# huggingface-hub
+# streamlit
+# pandas
+# matplotlib
+# python-dotenv
+# gitpython
+# loguru
+# pytest

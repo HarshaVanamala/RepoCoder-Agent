@@ -1,0 +1,16 @@
+# Virtual environment
+venv/
+
+# Generated data (large, regenerable via ast_parser.py + graph_builder.py)
+data/test_repo/
+data/chroma_db/
+data/chunks.json
+data/dependency_graph.json
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS/editor cruft
+.vscode/
+.DS_Store
