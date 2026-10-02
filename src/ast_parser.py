@@ -1,18 +1,3 @@
-"""
-ast_parser.py
-
-Parses a Python repository into function- and class-level chunks using
-tree-sitter, and extracts the raw call/import names referenced inside
-each chunk. This is the foundation for:
-  1. The vector index (each chunk gets embedded)
-  2. The dependency graph (chunk -> chunk edges, built in graph_builder.py
-     by resolving the call names extracted here against chunk definitions)
-
-Design note: this module deliberately does NOT resolve calls to their
-definitions. It only *extracts* what each chunk calls/imports. Resolution
-(turning "prepare_request" into a specific Chunk id) happens in
-graph_builder.py, once we have the full symbol table across the repo.
-"""
 
 from __future__ import annotations
 

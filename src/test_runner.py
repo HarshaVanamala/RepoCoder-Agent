@@ -1,33 +1,3 @@
-"""
-test_runner.py
-
-Day 6: takes a patch (a chunk's file_path + patched code) produced by
-patch_generator_agent.py, applies it to a fresh temporary copy of the
-repo, runs the relevant pytest tests inside a Docker container (built
-from the project Dockerfile), and reports pass/fail + captured output.
-
-This is what actually validates a patch objectively — earlier agents
-can only reason about whether a patch "looks right"; this step runs
-real tests against it.
-
-Design notes:
-  - A fresh copy of data/test_repo is made per run (not mutating the
-    original clone), so repeated patch attempts don't corrupt the
-    baseline repo used elsewhere in the pipeline.
-  - The patch is applied via a simple line-range replacement using the
-    chunk's start_line/end_line (from ast_parser.py's Chunk data),
-    since the patched code is expected to be a full replacement of
-    that chunk, preserving the rest of the file untouched.
-  - Docker mounts the patched copy at /repo and overrides the image's
-    default ENTRYPOINT args to target only the relevant test file
-    (fast — we don't want to run requests' full suite, which includes
-    slow/network-dependent tests, on every single patch attempt).
-
-Usage:
-    python src/test_runner.py
-
-Or import and call run_tests_on_patch() directly from another agent.
-"""
 
 from __future__ import annotations
 

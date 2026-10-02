@@ -1,97 +1,120 @@
-# RepoCoder-Agent — Day 1
+# RepoCoder-Agent
 
-An AST-aware, explainable code-understanding assistant for open-source
-contributors. Day 1 builds the foundation everything else sits on: a
-tree-sitter parser that turns a Python repository into structured chunks
-with call/import references extracted.
+A multi-agent AI system for automated bug localization and repair in GitHub repositories. Paste a bug report, and RepoCoder-Agent retrieves relevant code, localizes the likely fault, generates a patch, tests it in an isolated sandbox, and self-corrects on failure — all on local models, with no paid cloud API dependency.
 
-## What's here
+Currently evaluated against [`psf/requests`](https://github.com/psf/requests), the Python HTTP library.
+
+## What it does
+
+1. Takes a natural-language bug report or GitHub-issue-style query.
+2. Retrieves relevant code using both semantic search and structural (call-graph) context.
+3. Localizes the most likely faulty function/method.
+4. Generates a candidate patch and validates it syntactically.
+5. Runs the real test suite against the patch inside a Docker sandbox.
+6. If the patch fails, reflects on the failure and attempts one more informed retry.
+7. Returns a tested, validated patch — or a clear explanation when no safe fix is found.
+
+## Architecture / pipeline
 
 ```
-repocoder-agent/
-├── src/
-│   └── ast_parser.py       # RepoASTParser: repo -> list[Chunk]
-├── data/
-│   ├── test_repo/          # psf/requests, cloned as the working example
-│   └── chunks.json         # output of running the parser on test_repo
-├── requirements.txt
-└── README.md
+Repository
+   │
+   ▼
+AST Parser + Graph Builder
+   │
+   ▼
+Hybrid Retriever (semantic + graph expansion)
+   │
+   ▼
+Planner Agent (checks context sufficiency, reformulates if needed)
+   │
+   ▼
+Bug Localizer Agent (ranks candidate fault locations)
+   │
+   ▼
+Patch Generator Agent (proposes + syntax-validates a fix)
+   │
+   ▼
+Docker Sandbox (runs real pytest suite)
+   │
+   ├── Pass → Output: tested, validated patch
+   │
+   └── Fail → Reflection Agent → guided retry (capped at 2 total attempts)
 ```
+
+## Components
+
+| File | Role |
+|---|---|
+| `src/ast_parser.py` | AST parsing and function/class-level chunk extraction |
+| `src/graph_builder.py` | Builds a NetworkX call/import dependency graph over `src/` + `tests/`, saved to `data/dependency_graph.json` |
+| `src/hybrid_retriever.py` | Combines ChromaDB/MiniLM semantic search with 1-hop graph expansion (callers + callees); shared by all downstream agents |
+| `src/planner_agent.py` | LangGraph state machine: retrieve → assess sufficiency → reformulate (capped at 1 retry) → retrieve → done |
+| `src/bug_localizer_agent.py` | Ranks top 1–3 candidate fault chunks by confidence via Qwen2.5-Coder; discards hallucinated chunk IDs |
+| `src/patch_generator_agent.py` | Proposes a fix, validates syntax via `ast.parse`, refuses to patch test files or class-level chunks |
+| `src/test_runner.py` + `Dockerfile` | Runs the real pytest suite in an isolated sandbox against a fresh temp copy per run |
+| `src/reflection_agent.py` | Self-correction loop: generate → test → reflect → regenerate → test (capped at 2 total attempts) |
+| `streamlit_app.py` | Interactive UI wrapping the full pipeline |
+| `src/test_query.py` | Manual/debug script for spot-checking retrieval quality — not part of the core pipeline |
 
 ## Setup
 
+**Requirements:**
+- Python 3.10
+- [Ollama](https://ollama.com) installed locally, with the model pulled:
+  ```
+  ollama pull qwen2.5-coder:7b
+  ```
+- Docker (with WSL2 backend on Windows) — required for sandboxed test execution
+
+**Install dependencies:**
 ```bash
 pip install -r requirements.txt
 ```
 
-## Run it
+## Running the UI
 
 ```bash
-python src/ast_parser.py data/test_repo
+streamlit run streamlit_app.py
+```
+Then describe a bug (e.g. *"session cookies are not persisted across requests"*), pick a test file/filter, and submit. The UI shows retrieval, localization, and each patch attempt live.
+
+## How the Docker sandbox works
+
+Each patch attempt is tested against a **fresh temporary copy** of the repository inside a Docker container — the original repo is never mutated. This guarantees that "passed tests" means the patch was actually validated by execution, not just syntax-checked or self-reported by the LLM.
+
+## Example / demo flow
+
+```bash
+python src/reflection_agent.py "session cookies are not persisted across requests"
+```
+This runs the planner → localizer → patch generator → sandbox → reflection loop end-to-end from the command line and prints each attempt's result.
+
+## Project structure
+
+```
+RepoCoder-Agent/
+├── src/
+│   ├── ast_parser.py
+│   ├── graph_builder.py
+│   ├── hybrid_retriever.py
+│   ├── planner_agent.py
+│   ├── bug_localizer_agent.py
+│   ├── patch_generator_agent.py
+│   ├── test_runner.py
+│   ├── reflection_agent.py
+│   ├── test_query.py          # manual retrieval debug script
+│   └── test_bad_patch.py      # manual patch-testing debug script
+├── data/                      # generated at runtime (gitignored)
+├── Dockerfile
+├── streamlit_app.py
+├── requirements.txt
+└── README.md
 ```
 
-This walks every `.py` file in the repo and produces a `Chunk` for each
-function, method, and class, plus one synthetic `<module>` chunk per file
-capturing module-level imports and top-level calls. Output is written to
-`data/chunks.json`.
+## Known limitations
 
-## What a Chunk looks like
-
-```json
-{
-  "id": "src/requests/sessions.py::Session.send",
-  "file_path": "src/requests/sessions.py",
-  "name": "Session.send",
-  "kind": "method",
-  "start_line": 752,
-  "end_line": 829,
-  "docstring": "Send a given PreparedRequest.",
-  "calls": ["get_adapter", "resolve_redirects", "dispatch_hook", "send", "..."],
-  "imports": [],
-  "code": "def send(self, request, **kwargs): ..."
-}
-```
-
-The `calls` list is the raw names referenced inside the chunk — **not yet
-resolved** to specific definitions. That resolution (turning the string
-`"get_adapter"` into a pointer at `src/requests/sessions.py::Session.get_adapter`)
-is deliberately deferred to `graph_builder.py` (Day 2), which needs the
-full cross-file symbol table before it can disambiguate names that appear
-in multiple classes/files.
-
-## Design decisions worth knowing for the paper
-
-- **Chunking granularity**: function/method/class, not statement-level
-  (unlike GraphCoder's control/data-flow graph) and not whole-file
-  (unlike naive RAG baselines). This is a deliberate middle ground: fine
-  enough for precise localization, coarse enough to stay embeddable as a
-  single unit and cheap to retrieve.
-- **Call extraction is name-based, not type-resolved**: `self.foo()`,
-  `module.foo()`, and a free-standing `foo()` all just record `"foo"`.
-  This is intentional for Day 1 — full type resolution (know that
-  `self.foo` really means `Session.foo`) needs either static type
-  inference or the class context, which `graph_builder.py` adds next by
-  matching call names against known chunk names scoped by file/class
-  first, falling back to global name search.
-- **One module-level chunk per file**: captures file-level imports and
-  top-level statements (decorators registries, constants) without
-  polluting per-function chunk boundaries.
-
-## Verified against a real repo
-
-Ran against `psf/requests` (37 files): 603 chunks — 104 functions, 70
-classes, 394 methods, 35 module-level chunks. Spot-checked
-`Session.send` and confirmed it correctly extracts calls into
-`adapters.py` (`get_adapter`) and back into `sessions.py`
-(`resolve_redirects`) — the actual cross-file dependency chain your
-abstract's graph-expansion example describes.
-
-## Next (Day 2)
-
-- `graph_builder.py`: resolve `calls` names into a NetworkX `DiGraph` of
-  chunk-to-chunk edges (this is your dependency graph).
-- Embed each chunk's `code` + `docstring` with a code embedding model and
-  store in ChromaDB.
-- Note: `sentence-transformers`/`chromadb` need a Hugging Face model
-  download (`microsoft/codebert-base`, ~400MB) — do this on your own
-  machine, not in a network-restricted sandbox, the first time.
+- **Localization ranking:** in a controlled fault-injection test, retrieval correctly surfaced the buggy function, but the localizer ranked a caller function higher. Since only the top-ranked candidate is patched, the actual bug was missed. Candidate-fallback logic (retry lower-ranked candidates) is identified as the fix, scoped as future work.
+- **Reflection grounding:** guidance generated between retry attempts is still fairly generic rather than grounded in the precise expected-vs-actual test failure detail.
+- **Planner conservatism:** the local 7B model's context-sufficiency judgment is often overly conservative, flagging genuinely adequate context as insufficient. The pipeline hands off best-effort context regardless.
+- **Single-language scope:** evaluated on Python repositories only; no multi-language support.
