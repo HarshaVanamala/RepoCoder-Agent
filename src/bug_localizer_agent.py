@@ -1,20 +1,3 @@
-"""
-bug_localizer_agent.py
-
-Day 4 (continued): the second agent in the pipeline. Takes the context
-bundle produced by planner_agent.py and asks Qwen2.5-Coder to identify
-which specific chunk(s) are most likely responsible for the described
-bug, ranked with confidence and reasoning.
-
-Guardrail: local 7B models can hallucinate plausible-sounding but
-nonexistent identifiers. This agent validates every chunk_id the LLM
-returns against the actual context it was given — any id that isn't in
-the provided context is discarded rather than trusted, and logged as
-such so the failure is visible rather than silent.
-
-Usage:
-    python src/bug_localizer_agent.py "session cookies are not persisted across requests"
-"""
 
 from __future__ import annotations
 

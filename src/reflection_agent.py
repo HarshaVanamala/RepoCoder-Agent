@@ -1,25 +1,3 @@
-"""
-reflection_agent.py
-
-Day 7: closes the self-correction loop. When a generated patch fails its
-test run (test_runner.py), this module:
-  1. Extracts the meaningful failure signal from raw pytest output (error
-     type, message, the specific line that failed) rather than dumping
-     the whole verbose traceback at the LLM — keeps the prompt focused
-     and fast on CPU.
-  2. Asks Qwen2.5-Coder to reflect: WHY did this patch fail, and what
-     should change in a retry.
-  3. Feeds that reflection back into patch_generator_agent.py as extra
-     context for ONE regeneration attempt.
-
-Design: capped at 2 total patch attempts (1 initial + 1 reflected retry).
-This bounds runtime on CPU, avoids the agent looping on similar bad
-fixes indefinitely, and is enough to demonstrate a genuine reflection-
-based self-correction loop — the core novelty claimed in the abstract.
-
-Usage:
-    python src/reflection_agent.py "session cookies are not persisted across requests"
-"""
 
 from __future__ import annotations
 
@@ -149,7 +127,7 @@ if __name__ == "__main__":
     target_chunk = None
     for cand in loc_result["candidates"]:
         c = chunk_by_id.get(cand["chunk_id"])
-        if c and not c["file_path"].startswith("tests/"):
+        if c and not c["file_path"].startswith("tests/") and c["kind"] != "class":
             target_chunk = c
             break
 

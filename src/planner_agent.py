@@ -1,24 +1,3 @@
-"""
-planner_agent.py
-
-Day 4: the first agent in the multi-agent pipeline. Given a user query or
-GitHub issue, it:
-  1. Retrieves context using the Day 3 HybridRetriever
-  2. Asks Qwen2.5-Coder (via Ollama) whether the retrieved context is
-     SUFFICIENT to localize/understand the issue
-  3. If not sufficient, asks Qwen2.5-Coder to REFORMULATE the query into
-     more code-like/specific terms (bug reports use vague language; code
-     uses precise names — this bridges that gap) and retrieves again
-  4. Caps at one reformulation attempt (2 retrieval rounds total) to keep
-     runtime bounded on CPU — this is a deliberate, documented enhancement
-     over the original abstract's simpler "verify adequacy" planner.
-
-The final state (context + sufficiency verdict) is what gets handed to
-the next agent (bug localizer) in later phases.
-
-Usage:
-    python src/planner_agent.py "session cookies are not persisted across requests"
-"""
 
 from __future__ import annotations
 

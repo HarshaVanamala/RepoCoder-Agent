@@ -1,27 +1,3 @@
-"""
-hybrid_retriever.py
-
-Day 3: combines the two retrieval signals built in Day 2 into one
-unified interface:
-  1. Semantic search (ChromaDB + MiniLM embeddings) — finds chunks whose
-     MEANING matches the query, even with no shared vocabulary.
-  2. Graph expansion (NetworkX dependency graph) — for each semantic hit,
-     pulls in its direct callers and callees, since a bug or a feature
-     rarely lives in one isolated function; the structurally-connected
-     code is often exactly what's needed for correct context.
-
-This is the tool that every later agent (planner, bug localizer, patch
-generator) will call to get "relevant code for this query" — so it's
-built once here and reused everywhere else.
-
-Usage (as a library):
-    from hybrid_retriever import HybridRetriever
-    retriever = HybridRetriever()
-    results = retriever.retrieve("how does the library handle redirects?")
-
-Usage (as a script, for quick manual testing):
-    python src/hybrid_retriever.py "how does the library handle redirects?"
-"""
 
 from __future__ import annotations
 

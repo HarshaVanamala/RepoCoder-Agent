@@ -1,25 +1,3 @@
-"""
-patch_generator_agent.py
-
-Day 5: the third agent in the pipeline. Takes the bug localizer's top
-suspect chunk and asks Qwen2.5-Coder to propose a fixed version of the
-code, with an explanation of what changed and why.
-
-Guardrail: local 7B models can generate code that looks plausible but is
-not actually valid Python (mismatched brackets, bad indentation, etc.).
-Before accepting a patch, it's validated with Python's own ast.parse —
-if it doesn't parse, the patch is rejected and reported rather than
-silently handed downstream as if it were usable.
-
-This does NOT yet run tests against the patch (that's Day 6: sandboxed
-test execution) or reflect on failures (Day 7). This agent's job is
-narrowly: given a localized bug, propose one syntactically valid
-candidate fix.
-
-Usage:
-    python src/patch_generator_agent.py "session cookies are not persisted across requests"
-"""
-
 from __future__ import annotations
 
 import ast

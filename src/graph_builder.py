@@ -1,27 +1,3 @@
-"""
-graph_builder.py
-
-Day 2: builds on the Chunks produced by ast_parser.py.
-
-Two responsibilities:
-  1. Dependency graph: resolve the raw call names each chunk references
-     (extracted by ast_parser.py) against a repo-wide symbol table, and
-     build a NetworkX directed graph of chunk -> chunk "calls" edges.
-  2. Embeddings: embed each chunk's code + docstring using CodeBERT and
-     store the vectors in a persistent ChromaDB collection for semantic
-     retrieval later (used by the hybrid retriever in later phases).
-
-Scope: only chunks under src/ and tests/ are included (docs, setup.py,
-etc. are excluded) — this keeps the graph focused on code that matters
-for bug localization and patch generation.
-
-Usage:
-    python src/graph_builder.py [chunks_json_path]
-
-Outputs:
-    data/dependency_graph.json   (NetworkX node-link format)
-    data/chroma_db/              (persistent ChromaDB collection)
-"""
 
 from __future__ import annotations
 
